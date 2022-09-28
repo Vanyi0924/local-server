@@ -1,22 +1,9 @@
-use std::fs::{read, read_dir};
-use std::io::{Read, Write};
+use local_server::{get_mime_type, read_the_file};
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
-
-use regex::Regex;
-
-fn read_the_dir() {
-    let dir = read_dir(".").unwrap();
-    dir.for_each(|dir_result| match dir_result {
-        Ok(entry) => {
-            println!("{:?}", entry.file_name());
-            println!("{:?}", entry.file_type());
-            println!("{:?}", entry.path());
-            println!("{:?}", entry.metadata());
-            println!("------");
-        }
-        Err(err) => println!("{}", err),
-    })
-}
+use std::path::Path;
+use std::ffi::{OsStr, OsString};
 
 fn local_server() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
@@ -32,7 +19,7 @@ fn local_server() {
 }
 
 fn handle_connection(mut stream: TcpStream) {
-    let mut buffer = [0; 2048];
+    let mut buffer = [0; 1024];
     stream.read(&mut buffer).unwrap();
     let content = String::from_utf8_lossy(&buffer);
     let request_header: Vec<&str> = content
@@ -40,23 +27,54 @@ fn handle_connection(mut stream: TcpStream) {
         .split("\r\n")
         .filter(|the_str| !the_str.contains("\0"))
         .collect();
-    // let request_path = data.as_str();
     let request_path: Vec<&str> = request_header[0].split_whitespace().collect();
-    let response_data = read_the_file(&(".".to_owned() + request_path[1]));
-    let response = format!("HTTP/1.1 200 OK\r\n\r\n{}", response_data);
-    stream.write(response.as_bytes()).unwrap();
-    // // flush 会等待并阻塞程序执行直到所有字节都被写入连接中
-    stream.flush().unwrap();
-}
+    let response;
+    // 判断路径是否为文件
 
-fn read_the_file(path: &str) -> String {
-    println!("{}", path);
-    let content = read(path).unwrap();
-    String::from_utf8_lossy(&content).to_string()
+    if Path::new(&(".".to_owned() + request_path[1])).is_dir() {
+        response = format!(
+            "HTTP/1.1 404 OK\r\nContent-Type: {}\r\n\r\n{}",
+            get_mime_type(""),
+            "404 Not Found"
+        );
+        stream.write(response.as_bytes()).unwrap();
+        stream.flush().unwrap();
+    } else {
+        let file_path = ".".to_owned() + request_path[1];
+        let extension = Path::new(&file_path).extension().unwrap_or(OsString::from("").as_os_str()).to_owned();
+        let file = File::open(file_path);
+
+        match file {
+            Ok(file) => {
+                let mut reader = BufReader::new(file);
+                let mut buffer = Vec::new();
+                reader.read_to_end(&mut buffer).unwrap();
+
+                println!("{:?}", extension);
+
+                let abc = "HTTP/1.1 200 OK\r\nContent-Type: ".to_owned()
+                    + get_mime_type(&(extension.to_str().unwrap()))
+                    + "\r\n\r\n";
+
+                let aaa = abc.as_bytes();
+                let bbb = buffer.as_slice();
+                let ccc = [aaa, bbb].concat();
+                stream.write(ccc.as_slice()).unwrap();
+                stream.flush().unwrap();
+            }
+            Err(err) => {
+                response = format!(
+                    "HTTP/1.1 404 OK\r\nContent-Type: {}\r\n\r\n{}",
+                    get_mime_type(""),
+                    "404 Not Found"
+                );
+                stream.write(response.as_bytes()).unwrap();
+                stream.flush().unwrap();
+            }
+        };
+    }
 }
 
 fn main() {
-    // read_the_dir();
-    // read_the_file();
     local_server();
 }
