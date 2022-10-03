@@ -1,5 +1,5 @@
 [package]
-name = "local-server"
+name = "vyds"
 version = "0.1.0"
 edition = "2021"
 

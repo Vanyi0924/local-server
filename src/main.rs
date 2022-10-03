@@ -1,11 +1,9 @@
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
-use local_server::get_mime_type;
+use vyds::{get_mime_type, get_unused_port};
 use std::env;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
-
-const PORT: u16 = 9211;
 
 async fn all(req: HttpRequest) -> impl Responder {
     let current_dir = env::current_dir().unwrap();
@@ -19,29 +17,36 @@ async fn all(req: HttpRequest) -> impl Responder {
         Ok(file) => {
             let mut reader = BufReader::new(file);
             let mut buffer = Vec::new();
-            reader.read_to_end(&mut buffer).unwrap();
-            let extension = Path::new(req.path())
-                .extension()
-                .unwrap_or_default()
-                .to_str()
-                .unwrap_or_default();
-            HttpResponse::Ok()
-                .content_type(get_mime_type(extension))
-                .body(buffer)
+            match reader.read_to_end(&mut buffer) {
+                Ok(size) => {
+                    let extension = Path::new(req.path())
+                        .extension()
+                        .unwrap_or_default()
+                        .to_str()
+                        .unwrap_or_default();
+                    HttpResponse::Ok()
+                        .content_type(get_mime_type(extension))
+                        .body(buffer)
+                }
+                Err(_) => HttpResponse::NotFound().body("[404] Is a directory"),
+            }
         }
-        Err(_) => HttpResponse::NotFound().body("404 not found"),
+        Err(_) => HttpResponse::NotFound().body("[404] Not found"),
     }
 }
 
-#[actix_web::main] // or #[tokio::main]
+const PORT: u16 = 9211;
+
+#[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let port = get_unused_port(PORT);
     println!(
         "your local dev server is runing at: http://127.0.0.1:{}",
-        PORT
+        port
     );
 
     HttpServer::new(|| App::new().default_service(web::route().to(all)))
-        .bind(("127.0.0.1", PORT))?
+        .bind(("127.0.0.1", port))?
         .run()
         .await
 }
