@@ -9,8 +9,12 @@ pub fn get_mime_type(ext: &str) -> ContentType {
     match ext {
         "html" => ContentType::html(),
         "webp" | "jpg" | "jpeg" => ContentType(mime::IMAGE_JPEG),
+        "png" => ContentType::png(),
+        "svg" => ContentType(mime::IMAGE_SVG),
         "json" => ContentType::json(),
-        "md" => ContentType(mime::TEXT_PLAIN_UTF_8),
+        "js" => ContentType(mime::APPLICATION_JAVASCRIPT),
+        "css" => ContentType(mime::TEXT_CSS),
+        "woff2" => ContentType(mime::FONT_WOFF2),
         _ => ContentType(mime::STAR_STAR),
     }
 }
